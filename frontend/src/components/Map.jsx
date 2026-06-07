@@ -1,43 +1,48 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MAPBOX_TOKEN, NYC_CENTER, PULSE_COLORS } from '../utils/constants';
 import { useApp } from '../context/AppContext';
+import { useMapData } from '../hooks/useMapData';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 export default function Map() {
   const mapContainer = useRef(null);
-  const map = useRef(null);
+  const [mapInstance, setMapInstance] = useState(null);
   const markersRef = useRef([]);
   const { state, dispatch } = useApp();
 
-  useEffect(() => {
-    if (map.current) return;
+  useMapData(mapInstance);
 
-    map.current = new mapboxgl.Map({
+  useEffect(() => {
+    if (mapInstance) return;
+
+    const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
       center: [NYC_CENTER.lng, NYC_CENTER.lat],
       zoom: NYC_CENTER.zoom,
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    map.current.addControl(
+    m.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    m.addControl(
       new mapboxgl.GeolocateControl({ trackUserLocation: true }),
       'top-right'
     );
 
-    map.current.on('click', (e) => {
+    m.on('click', (e) => {
       dispatch({
         type: 'SELECT_LOCATION',
         payload: { lng: e.lngLat.lng, lat: e.lngLat.lat },
       });
     });
-  }, [dispatch]);
+
+    setMapInstance(m);
+  }, [dispatch, mapInstance]);
 
   useEffect(() => {
-    if (!map.current) return;
+    if (!mapInstance) return;
 
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
@@ -63,7 +68,7 @@ export default function Map() {
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat([report.lng, report.lat])
-        .addTo(map.current);
+        .addTo(mapInstance);
 
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -72,58 +77,66 @@ export default function Map() {
 
       markersRef.current.push(marker);
     });
-  }, [state.reports, dispatch]);
+  }, [state.reports, dispatch, mapInstance]);
 
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
+    if (!mapInstance) return;
 
-    const hexFeatures = Object.entries(state.pulseScores).map(([hexId, data]) => ({
-      type: 'Feature',
-      properties: { score: data.score, hexId },
-      geometry: data.geometry,
-    }));
+    function applyHexLayer() {
+      const hexFeatures = Object.entries(state.pulseScores).map(([hexId, data]) => ({
+        type: 'Feature',
+        properties: { score: data.score, hexId },
+        geometry: data.geometry,
+      }));
 
-    const source = map.current.getSource('pulse-hexes');
-    const geojson = { type: 'FeatureCollection', features: hexFeatures };
+      const geojson = { type: 'FeatureCollection', features: hexFeatures };
+      const source = mapInstance.getSource('pulse-hexes');
 
-    if (source) {
-      source.setData(geojson);
-    } else if (hexFeatures.length > 0) {
-      map.current.addSource('pulse-hexes', { type: 'geojson', data: geojson });
-      map.current.addLayer({
-        id: 'pulse-hex-fill',
-        type: 'fill',
-        source: 'pulse-hexes',
-        paint: {
-          'fill-color': [
-            'interpolate', ['linear'], ['get', 'score'],
-            0, PULSE_COLORS.calm,
-            30, PULSE_COLORS.calm,
-            31, PULSE_COLORS.elevated,
-            60, PULSE_COLORS.elevated,
-            61, PULSE_COLORS.active,
-            100, PULSE_COLORS.active,
-          ],
-          'fill-opacity': 0.25,
-        },
-      });
-      map.current.addLayer({
-        id: 'pulse-hex-outline',
-        type: 'line',
-        source: 'pulse-hexes',
-        paint: {
-          'line-color': [
-            'interpolate', ['linear'], ['get', 'score'],
-            0, PULSE_COLORS.calm,
-            50, PULSE_COLORS.elevated,
-            100, PULSE_COLORS.active,
-          ],
-          'line-width': 1,
-          'line-opacity': 0.6,
-        },
-      });
+      if (source) {
+        source.setData(geojson);
+      } else if (hexFeatures.length > 0) {
+        mapInstance.addSource('pulse-hexes', { type: 'geojson', data: geojson });
+        mapInstance.addLayer({
+          id: 'pulse-hex-fill',
+          type: 'fill',
+          source: 'pulse-hexes',
+          paint: {
+            'fill-color': [
+              'interpolate', ['linear'], ['get', 'score'],
+              0, PULSE_COLORS.calm,
+              30, PULSE_COLORS.calm,
+              31, PULSE_COLORS.elevated,
+              60, PULSE_COLORS.elevated,
+              61, PULSE_COLORS.active,
+              100, PULSE_COLORS.active,
+            ],
+            'fill-opacity': 0.25,
+          },
+        });
+        mapInstance.addLayer({
+          id: 'pulse-hex-outline',
+          type: 'line',
+          source: 'pulse-hexes',
+          paint: {
+            'line-color': [
+              'interpolate', ['linear'], ['get', 'score'],
+              0, PULSE_COLORS.calm,
+              50, PULSE_COLORS.elevated,
+              100, PULSE_COLORS.active,
+            ],
+            'line-width': 1,
+            'line-opacity': 0.6,
+          },
+        });
+      }
     }
-  }, [state.pulseScores]);
+
+    if (mapInstance.isStyleLoaded()) {
+      applyHexLayer();
+    } else {
+      mapInstance.on('style.load', applyHexLayer);
+    }
+  }, [state.pulseScores, mapInstance]);
 
   return <div ref={mapContainer} className="map-container" />;
 }

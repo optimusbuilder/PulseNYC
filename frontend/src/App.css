@@ -342,6 +342,75 @@ body {
   font-style: italic;
 }
 
+/* Shared Report Page */
+.shared-page {
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.shared-map {
+  flex: 1;
+  width: 100%;
+}
+
+.shared-panel {
+  background: var(--bg-panel);
+  padding: 24px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.shared-brand h1 {
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+}
+
+.shared-info h2 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.shared-desc {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.shared-confirm-btn {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.shared-confirmed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.shared-cta {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.shared-loading,
+.shared-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
 /* Mobile adjustments */
 @media (max-width: 600px) {
   .category-grid {

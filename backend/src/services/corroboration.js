@@ -13,23 +13,17 @@ export async function checkCorroboration(newReport) {
      WHERE status = 'unverified'
        AND category = $1
        AND id != $2
-       AND ST_DWithin(
-         geom,
-         ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography,
-         300
-       )
+       AND haversine_distance(lat, lng, $3, $4) <= 300
        AND created_at > NOW() - INTERVAL '60 minutes'`,
-    [category, id, lng, lat]
+    [category, id, lat, lng]
   );
 
-  // Collect unique session IDs (excluding the new reporter)
   const uniqueSessions = new Set(
     result.rows
       .map(r => r.session_id)
       .filter(sid => sid !== session_id)
   );
 
-  // Need 2 other unique sessions (total 3 including the new reporter)
   if (uniqueSessions.size >= 2) {
     const idsToConfirm = result.rows.map(r => r.id);
     idsToConfirm.push(id);

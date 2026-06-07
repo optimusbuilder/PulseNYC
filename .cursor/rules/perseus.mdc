@@ -66,6 +66,10 @@ Call it in agent mode:
 perseus query --no-summary --json "auth enforcement on the query route"
 ```
 
+**IMPORTANT: perseus calls the perseus.computer API over the network.
+When running via the Shell tool, ALWAYS pass `required_permissions: ["full_network"]`
+so the sandbox does not block the request.**
+
 - `--no-summary` returns ranked locations only (skips prose synthesis).
 - `--json` prints a clean JSON object on stdout (status goes to stderr), so
   `perseus query --no-summary --json "…" | jq` just works. Read `.hits[]` —

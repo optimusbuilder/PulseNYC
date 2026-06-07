@@ -35,7 +35,6 @@ export async function poll311() {
 
       const externalId = `311-${complaint.unique_key}`;
 
-      // Upsert
       await pool.query(
         `INSERT INTO reports (session_id, category, lat, lng, description, status, source, expires_at)
          SELECT $1, $2, $3, $4, $5, 'auto', '311', NOW() + INTERVAL '4 hours'
@@ -45,19 +44,15 @@ export async function poll311() {
         [externalId, category, lat, lng, (complaint.descriptor || '').slice(0, 200)]
       );
 
-      // Cross-reference: auto-confirm matching user reports nearby
+      // Cross-reference: auto-confirm nearby user reports
       await pool.query(
         `UPDATE reports SET status = 'confirmed'
          WHERE status = 'unverified'
            AND category = $1
            AND source = 'user'
-           AND ST_DWithin(
-             geom,
-             ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-             300
-           )
+           AND haversine_distance(lat, lng, $2, $3) <= 300
            AND created_at > NOW() - INTERVAL '60 minutes'`,
-        [category, lng, lat]
+        [category, lat, lng]
       );
     }
   } catch (err) {

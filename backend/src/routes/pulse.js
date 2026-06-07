@@ -30,17 +30,12 @@ router.get('/', async (req, res) => {
       const boundary = h3.cellToBoundary(hexId);
       const center = h3.cellToLatLng(hexId);
 
-      // Get all active reports in this hex
       const result = await pool.query(
         `SELECT category, status, created_at FROM reports
-         WHERE ST_DWithin(
-           geom,
-           ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
-           500
-         )
-         AND status IN ('unverified', 'confirmed', 'auto')
-         AND created_at > NOW() - INTERVAL '12 hours'`,
-        [center[1], center[0]]
+         WHERE haversine_distance(lat, lng, $1, $2) <= 500
+           AND status IN ('unverified', 'confirmed', 'auto')
+           AND created_at > NOW() - INTERVAL '12 hours'`,
+        [center[0], center[1]]
       );
 
       const reports = result.rows;
@@ -52,21 +47,18 @@ router.get('/', async (req, res) => {
       score += confirmed.length * 15;
       score += unverified.length * 5;
 
-      // Severity bonus
       for (const r of reports) {
         score += SEVERITY_BONUS[r.category] || 0;
       }
 
-      // Recency bonus
       const fifteenMinsAgo = Date.now() - 15 * 60 * 1000;
       const hasRecent = reports.some(r => new Date(r.created_at).getTime() > fifteenMinsAgo);
       if (hasRecent) score += 10;
 
       score = Math.min(100, score);
 
-      // Build hex polygon for GeoJSON
       const polygon = boundary.map(([lat, lng]) => [lng, lat]);
-      polygon.push(polygon[0]); // close the ring
+      polygon.push(polygon[0]);
 
       scores[hexId] = {
         score,

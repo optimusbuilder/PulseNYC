@@ -24,11 +24,8 @@ router.post('/', async (req, res) => {
     );
 
     const report = result.rows[0];
-
-    // Check if this new report triggers corroboration
     await checkCorroboration(report);
 
-    // Re-fetch in case status was upgraded
     const updated = await pool.query('SELECT * FROM reports WHERE id = $1', [report.id]);
     res.status(201).json(updated.rows[0]);
   } catch (err) {
@@ -48,11 +45,11 @@ router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM reports
-       WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)
+       WHERE haversine_distance(lat, lng, $1, $2) <= $3
          AND (status != 'expired' OR created_at > NOW() - INTERVAL '2 hours')
        ORDER BY created_at DESC
        LIMIT 200`,
-      [parseFloat(lng), parseFloat(lat), parseInt(r)]
+      [parseFloat(lat), parseFloat(lng), parseInt(r)]
     );
     res.json(result.rows);
   } catch (err) {
@@ -80,7 +77,6 @@ router.post('/:id/confirm', async (req, res) => {
   if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
   try {
-    // Prevent duplicate corroborations from same session
     await pool.query(
       `INSERT INTO corroborations (report_id, session_id)
        VALUES ($1, $2)
@@ -88,21 +84,17 @@ router.post('/:id/confirm', async (req, res) => {
       [id, session_id]
     );
 
-    // Refresh the report timestamp
     await pool.query(
       `UPDATE reports SET refreshed_at = NOW() WHERE id = $1`,
       [id]
     );
 
-    // Check corroboration count
     const countResult = await pool.query(
       `SELECT COUNT(DISTINCT session_id) as cnt FROM corroborations WHERE report_id = $1`,
       [id]
     );
 
-    const count = parseInt(countResult.rows[0].cnt);
-    if (count >= 2) {
-      // 2 corroborations + original reporter = 3 independent confirmations
+    if (parseInt(countResult.rows[0].cnt) >= 2) {
       await pool.query(
         `UPDATE reports SET status = 'confirmed' WHERE id = $1 AND status = 'unverified'`,
         [id]

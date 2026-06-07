@@ -5,7 +5,7 @@ import { generateBrief } from '../services/ai.js';
 const router = Router();
 
 const briefCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000;
 
 router.get('/', async (req, res) => {
   const { lat, lng } = req.query;
@@ -22,16 +22,12 @@ router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT category, status, description, source, created_at FROM reports
-       WHERE ST_DWithin(
-         geom,
-         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
-         1000
-       )
-       AND status IN ('unverified', 'confirmed', 'auto')
-       AND created_at > NOW() - INTERVAL '6 hours'
+       WHERE haversine_distance(lat, lng, $1, $2) <= 1000
+         AND status IN ('unverified', 'confirmed', 'auto')
+         AND created_at > NOW() - INTERVAL '6 hours'
        ORDER BY created_at DESC
        LIMIT 20`,
-      [parseFloat(lng), parseFloat(lat)]
+      [parseFloat(lat), parseFloat(lng)]
     );
 
     if (result.rows.length === 0) {
